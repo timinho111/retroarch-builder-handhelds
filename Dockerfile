@@ -81,7 +81,8 @@ RUN cd /tmp && \
     git clone https://github.com/libretro/RetroArch.git && \
     cd RetroArch && \
     git checkout v1.21.0 && \
-    ./configure --enable-kms --enable-egl --disable-x11 --disable-wayland --enable-rga && \
+    # The --enable-rga flag has been REMOVED from the line below as it is auto-detected
+    ./configure --enable-kms --enable-egl --disable-x11 --disable-wayland && \
     make -j4
 
 # Create a clean output directory and copy only the essential final files into it
