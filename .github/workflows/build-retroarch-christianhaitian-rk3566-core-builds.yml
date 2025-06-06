@@ -1,4 +1,4 @@
-name: Debug Build for RK3566
+name: Build RetroArch Binary for RK3566
 
 on:
   push:
@@ -53,29 +53,19 @@ jobs:
         sudo ldconfig
 
     # STEP 4: EXECUTE THE BUILDS.SH SCRIPT
-    - name: Build RetroArch Debian Package
-      id: build_script
+    - name: Build RetroArch Binary
       working-directory: ./rk3566_core_builds
       run: |
         sudo ./builds.sh retroarch
 
     # ==========================================================================
-    # STEP 5: (NEW) DEBUGGING STEP TO FIND THE OUTPUT
+    # STEP 5: UPLOAD THE FINAL RETROARCH BINARY AND CONFIG FILE
     # ==========================================================================
-    - name: Debug - List all created files
-      run: |
-        echo "Listing all files in the workspace..."
-        ls -R
-
-    # The steps below are temporarily disabled until we find the correct path.
-    # - name: Extract Binary from .deb Package
-    #   run: |
-    #     mkdir -p extracted_binary
-    #     DEB_FILE=$(find rk3566_core_builds/debs/ -name "retroarch*.deb")
-    #     dpkg-deb -x $DEB_FILE extracted_binary
-    #
-    # - name: Upload RetroArch Binary File
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: retroarch-binary-rk3566
-    #     path: extracted_binary/usr/games/retroarch
+    - name: Upload RetroArch Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: retroarch-binary-rk3566
+        # Path to the compiled binary and its default config file
+        path: |
+          rk3566_core_builds/retroarch/retroarch
+          rk3566_core_builds/retroarch/retroarch.cfg
