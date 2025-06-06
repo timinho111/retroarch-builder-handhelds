@@ -1,4 +1,4 @@
-name: Build RetroArch for RK3566
+name: Build and Extract RetroArch Binary for RK3566
 
 on:
   push:
@@ -10,35 +10,73 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04-arm
-    
+
     steps:
-    # Step 1: Checkout the repository with the build scripts
+    # STEP 1: CHECKOUT THE BUILD SCRIPT REPOSITORY
     - name: Checkout rk3566_core_builds repository
       uses: actions/checkout@v4
       with:
         repository: 'christianhaitian/rk3566_core_builds'
         path: 'rk3566_core_builds'
 
-    # Step 2: Install all required build dependencies
-    - name: Install build dependencies
+    # STEP 2: INSTALL COMPREHENSIVE SYSTEM DEPENDENCIES
+    - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
+        sudo apt-get install -y --no-install-recommends \
           build-essential \
           git \
+          wget \
+          python3 \
+          meson \
+          ninja-build \
           pkg-config \
-          libegl-dev \
-          libegl1-mesa-dev \
-          libgles-dev \
-          libgles2-mesa-dev \
-          libdrm-dev \
-          libgbm-dev \
           libudev-dev \
-          libsystemd-dev \
-          libasound2-dev
+          libdrm-dev \
+          libegl1-mesa-dev \
+          libgles2-mesa-dev \
+          libgl1-mesa-dev \
+          libasound2-dev \
+          libgbm-dev
 
-    # Step 3: Run the build script with sudo
-    - name: Build RetroArch
+    # STEP 3: BUILD AND INSTALL THE ROCKCHIP RGA LIBRARY
+    - name: Build and Install Rockchip RGA Library
       run: |
-        cd rk3566_core_builds
+        git clone --depth=1 https://github.com/amarula/rockchip-linux-rga.git /tmp/librga
+        cd /tmp/librga
+        meson setup build
+        ninja -C build
+        sudo cp build/librga.so /usr/local/lib/
+        sudo mkdir -p /usr/local/include/rga
+        sudo cp *.h /usr/local/include/rga/
+        echo "/usr/local/lib" | sudo tee /etc/ld.so.conf.d/rga.conf
+        sudo ldconfig
+
+    # STEP 4: EXECUTE THE BUILDS.SH SCRIPT
+    - name: Build RetroArch Debian Package
+      id: build_script
+      working-directory: ./rk3566_core_builds
+      run: |
         sudo ./builds.sh retroarch
+
+    # ==========================================================================
+    # STEP 5: EXTRACT THE BINARY FROM THE .DEB PACKAGE
+    # ==========================================================================
+    - name: Extract Binary from .deb Package
+      run: |
+        # Create a directory to extract the contents into
+        mkdir -p extracted_binary
+        
+        # Find the .deb file and use dpkg-deb to extract it
+        DEB_FILE=$(find rk3566_core_builds/debs/ -name "retroarch*.deb")
+        dpkg-deb -x $DEB_FILE extracted_binary
+
+    # ==========================================================================
+    # STEP 6: UPLOAD THE FINAL RETROARCH BINARY
+    # ==========================================================================
+    - name: Upload RetroArch Binary File
+      uses: actions/upload-artifact@v4
+      with:
+        name: retroarch-binary-rk3566
+        # The script likely installs the binary to /usr/games/retroarch inside the package.
+        path: extracted_binary/usr/games/retroarch
