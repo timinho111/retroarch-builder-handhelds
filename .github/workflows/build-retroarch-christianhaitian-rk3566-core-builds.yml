@@ -34,7 +34,8 @@ jobs:
           libdrm-dev \
           libgbm-dev \
           libudev-dev \
-          libsystemd-dev
+          libsystemd-dev \
+          libasound2-dev
 
     # Step 3: Run the build script with sudo
     - name: Build RetroArch
