@@ -1,24 +1,43 @@
 name: Build RetroArch for RK3566
+
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-22.04-arm
+    
     steps:
-    - name: Checkout Build Scripts
-      uses: actions/checkout@v3
+    # Step 1: Checkout the repository with the build scripts
+    - name: Checkout rk3566_core_builds repository
+      uses: actions/checkout@v4
       with:
         repository: 'christianhaitian/rk3566_core_builds'
         path: 'rk3566_core_builds'
+
+    # Step 2: Install all required build dependencies
     - name: Install build dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git build-essential
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          pkg-config \
+          libegl-dev \
+          libegl1-mesa-dev \
+          libgles-dev \
+          libgles2-mesa-dev \
+          libdrm-dev \
+          libgbm-dev \
+          libudev-dev \
+          libsystemd-dev
+
+    # Step 3: Run the build script with sudo
     - name: Build RetroArch
       run: |
         cd rk3566_core_builds
-        ./builds.sh retroarch
+        sudo ./builds.sh retroarch
