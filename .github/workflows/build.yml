@@ -1,0 +1,26 @@
+name: Build RetroArch
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build the Docker image
+        run: docker build -t retroarch-final .
+      - name: Extract artifacts from the image
+        run: |
+          mkdir -p artifacts
+          docker create --name temp_container retroarch-final
+          docker cp temp_container:/build_output/. artifacts/
+          docker rm temp_container
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: retroarch-build
+          path: artifacts/
