@@ -1,4 +1,4 @@
-name: Build and Extract RetroArch Binary for RK3566
+name: Debug Build for RK3566
 
 on:
   push:
@@ -60,23 +60,22 @@ jobs:
         sudo ./builds.sh retroarch
 
     # ==========================================================================
-    # STEP 5: EXTRACT THE BINARY FROM THE .DEB PACKAGE
+    # STEP 5: (NEW) DEBUGGING STEP TO FIND THE OUTPUT
     # ==========================================================================
-    - name: Extract Binary from .deb Package
+    - name: Debug - List all created files
       run: |
-        # Create a directory to extract the contents into
-        mkdir -p extracted_binary
-        
-        # Find the .deb file and use dpkg-deb to extract it
-        DEB_FILE=$(find rk3566_core_builds/debs/ -name "retroarch*.deb")
-        dpkg-deb -x $DEB_FILE extracted_binary
+        echo "Listing all files in the workspace..."
+        ls -R
 
-    # ==========================================================================
-    # STEP 6: UPLOAD THE FINAL RETROARCH BINARY
-    # ==========================================================================
-    - name: Upload RetroArch Binary File
-      uses: actions/upload-artifact@v4
-      with:
-        name: retroarch-binary-rk3566
-        # The script likely installs the binary to /usr/games/retroarch inside the package.
-        path: extracted_binary/usr/games/retroarch
+    # The steps below are temporarily disabled until we find the correct path.
+    # - name: Extract Binary from .deb Package
+    #   run: |
+    #     mkdir -p extracted_binary
+    #     DEB_FILE=$(find rk3566_core_builds/debs/ -name "retroarch*.deb")
+    #     dpkg-deb -x $DEB_FILE extracted_binary
+    #
+    # - name: Upload RetroArch Binary File
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: retroarch-binary-rk3566
+    #     path: extracted_binary/usr/games/retroarch
