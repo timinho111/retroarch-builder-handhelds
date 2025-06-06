@@ -1,0 +1,24 @@
+name: Build RetroArch for RK3566
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04-arm
+    steps:
+    - name: Checkout Build Scripts
+      uses: actions/checkout@v3
+      with:
+        repository: 'christianhaitian/rk3566_core_builds'
+        path: 'rk3566_core_builds'
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git build-essential
+    - name: Build RetroArch
+      run: |
+        cd rk3566_core_builds
+        ./builds.sh retroarch
