@@ -1,4 +1,4 @@
-name: Build RetroArch for TrimUI Smart Pro (Brick) - Definitive
+name: Build RetroArch for TrimUI Smart Pro (Brick)
 
 on:
   workflow_dispatch:
@@ -9,15 +9,13 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    # ==========================================================================
-    # 1. Set up a correctly scoped Multi-Arch build environment
-    # ==========================================================================
+    # STEP 1: Set up a correctly scoped Multi-Arch build environment
     - name: Setup Multi-Arch Environment
       run: |
-        # Explicitly scope the default sources to amd64 ONLY. This is the new key fix.
+        # Explicitly scope the default sources to amd64 ONLY
         sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
         
-        # Now, add arm64 as a new architecture
+        # Add the arm64 architecture
         sudo dpkg --add-architecture arm64
         
         # Add the official "ports" repository specifically for arm64 packages
@@ -25,12 +23,10 @@ jobs:
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
         
-        # Now, update the package list. This will succeed because each architecture has its own dedicated source.
+        # Update the package list
         sudo apt-get update
 
-    # ==========================================================================
-    # 2. Download the Official Arm Compiler Toolchain
-    # ==========================================================================
+    # STEP 2: Download the Official Arm Compiler Toolchain
     - name: Download and Setup Arm GNU Toolchain
       run: |
         wget -q https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
@@ -39,15 +35,18 @@ jobs:
         echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
 
     # ==========================================================================
-    # 3. Install Host and Target (arm64) Dependencies
+    # STEP 3: Install All Host and Target (arm64) Dependencies
     # ==========================================================================
     - name: Install Host and Target Dependencies
       run: |
+        # Install build tools for the runner (host)
         sudo apt-get install -y build-essential pkg-config git
-        sudo apt-get install -y libegl-dev:arm64 libgles2-mesa-dev:arm64 libudev-dev:arm64 libasound2-dev:arm64 libgbm-dev:arm64
+        
+        # Install the required libraries for the arm64 target, including the missing systemd
+        sudo apt-get install -y libegl-dev:arm64 libgles2-mesa-dev:arm64 libudev-dev:arm64 libasound2-dev:arm64 libgbm-dev:arm64 libsystemd-dev:arm64
 
     # ==========================================================================
-    # 4. Clone and Configure RetroArch for Cross-Compilation
+    # STEP 4: Clone and Configure RetroArch for Cross-Compilation
     # ==========================================================================
     - name: Clone and Configure RetroArch v1.21.0
       run: |
@@ -55,13 +54,17 @@ jobs:
         cd RetroArch
         git checkout v1.21.0
         
+        echo "--- Verifying pkg-config installation ---"
+        which pkg-config
+        
+        # This is the definitive environment setup for cross-compilation
         export CC=aarch64-none-linux-gnu-gcc
         export CXX=aarch64-none-linux-gnu-g++
         export AR=aarch64-none-linux-gnu-ar
         export STRIP=aarch64-none-linux-gnu-strip
+        export PKG_CONFIG_SYSROOT_DIR=/
         export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-        export CFLAGS="-I/usr/include/aarch64-linux-gnu"
-        export LDFLAGS="-L/usr/lib/aarch64-linux-gnu"
+        export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu
 
         ./configure \
           --host=aarch64-none-linux-gnu \
@@ -69,7 +72,7 @@ jobs:
           --enable-opengles --enable-egl --enable-kms
 
     # ==========================================================================
-    # 5. Compile RetroArch
+    # STEP 5: Compile RetroArch
     # ==========================================================================
     - name: Compile RetroArch
       run: |
@@ -77,7 +80,7 @@ jobs:
         make -j$(nproc)
 
     # ==========================================================================
-    # 6. Upload the finished RetroArch binary as an artifact
+    # STEP 6: Upload the finished RetroArch binary as an artifact
     # ==========================================================================
     - name: Upload RetroArch Binary
       uses: actions/upload-artifact@v4
