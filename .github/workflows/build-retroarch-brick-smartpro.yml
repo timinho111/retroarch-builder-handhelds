@@ -1,4 +1,4 @@
-name: Build RetroArch for TrimUI Brick
+name: Build RetroArch for TrimUI Smart Pro (Brick) - Docker Final
 
 on:
   workflow_dispatch:
@@ -6,114 +6,70 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Set up QEMU for multi-platform builds
+      uses: docker/setup-qemu-action@v3
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+    - name: Build RetroArch inside an arm64 Container and Extract Binary
+      run: |
+        # Dynamically create our Dockerfile. This defines the perfect build environment.
+        cat <<EOF > Dockerfile
+        # Start from a clean, arm64 Ubuntu 22.04 image
+        FROM arm64v8/ubuntu:22.04
 
-      - name: Create the Dockerfile
-        run: |
-          # This command dynamically creates the Dockerfile needed for the build.
-          # You do not need to have a Dockerfile in your repository.
-          cat <<'EOF' > Dockerfile
-          # Use Debian Buster for ARM64 as the base image, which is proven to work
-          FROM arm64v8/debian:buster
+        # Avoid interactive prompts during package installation
+        ENV DEBIAN_FRONTEND=noninteractive
 
-          # Set environment variables to avoid interactive prompts
-          ENV DEBIAN_FRONTEND=noninteractive CMAKE_VERSION=3.26.4
+        # Install every possible dependency RetroArch might need, natively for arm64
+        RUN apt-get update && apt-get install -y --no-install-recommends \
+            build-essential \
+            git \
+            ca-certificates \
+            wget \
+            pkg-config \
+            libegl-dev \
+            libgles2-mesa-dev \
+            libudev-dev \
+            libasound2-dev \
+            libgbm-dev \
+            libsystemd-dev \
+            libdrm-dev \
+            libxkbcommon-dev \
+            libfreetype6-dev \
+            libgl1-mesa-dev \
+            zlib1g-dev
 
-          # ==============================================================================
-          # SECTION 1: INSTALL ALL SYSTEM DEPENDENCIES
-          # ==============================================================================
-          RUN apt-get update && \
-              apt-get install -y --no-install-recommends \
-                  build-essential \
-                  git \
-                  wget \
-                  ca-certificates \
-                  python3 \
-                  python3-pip \
-                  ninja-build \
-                  pkg-config \
-                  libudev-dev \
-                  libdrm-dev \
-                  libegl1-mesa-dev \
-                  libgles2-mesa-dev \
-                  libgl1-mesa-dev \
-                  libasound2-dev \
-                  libgbm-dev && \
-              # Create a symlink for the DRM headers, which RetroArch can expect
-              ln -s /usr/include/libdrm /usr/include/drm && \
-              # Clean up apt cache
-              apt-get clean && rm -rf /var/lib/apt/lists/*
+        # Set a working directory inside the container
+        WORKDIR /build
 
+        # Clone and configure RetroArch
+        RUN git clone https://github.com/libretro/RetroArch.git && \
+            cd RetroArch && \
+            git checkout v1.21.0 && \
+            ./configure \
+              --enable-opengles \
+              --enable-egl \
+              --enable-kms \
+              --enable-freetype \
+              --disable-x11 \
+              --disable-wayland \
+              --disable-pulse && \
+            make -j\$(nproc)
+        EOF
 
-          # ==============================================================================
-          # SECTION 2: MANUALLY INSTALL MODERN BUILD TOOLS
-          # ==============================================================================
+        # Use Docker to build the image. The --output flag tells Docker to
+        # copy the build result to a local 'output' directory instead of saving the image.
+        docker buildx build \
+          --platform linux/arm64 \
+          --output type=local,dest=./output \
+          .
 
-          # Manually install a modern version of CMake
-          RUN cd /tmp && \
-              wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-aarch64.sh && \
-              chmod +x cmake-${CMAKE_VERSION}-linux-aarch64.sh && \
-              ./cmake-${CMAKE_VERSION}-linux-aarch64.sh --skip-license --prefix=/usr/local && \
-              rm -f cmake-${CMAKE_VERSION}-linux-aarch64.sh
-
-          # Manually install a recent version of Meson
-          RUN pip3 install --upgrade meson
-
-
-          # ==============================================================================
-          # SECTION 3: MANUALLY BUILD AND INSTALL REQUIRED LIBRARIES
-          # ==============================================================================
-
-          # Manually build and install SDL2 with specific features for our device
-          RUN cd /tmp && \
-              git clone --depth=1 https://github.com/libsdl-org/SDL.git && \
-              cd SDL && \
-              mkdir build && cd build && \
-              cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DSDL_STATIC=OFF -DSDL_VIDEO_WAYLAND=OFF -DSDL_VIDEO_X11=OFF -DSDL_VIDEO_KMSDRM=ON && \
-              make -j4 && \
-              make install && \
-              ldconfig && \
-              cd / && rm -rf /tmp/SDL
-
-
-          # ==============================================================================
-          # SECTION 4: BUILD RETROARCH V1.21.0 AND PREPARE OUTPUT
-          # ==============================================================================
-
-          # Clone the full repo, checkout the specific v1.21.0 tag, and build RetroArch
-          RUN cd /tmp && \
-              git clone https://github.com/libretro/RetroArch.git && \
-              cd RetroArch && \
-              git checkout v1.21.0 && \
-              ./configure --enable-kms --enable-egl --disable-x11 --disable-wayland --enable-freetype && \
-              make -j4
-
-          # Create a clean output directory and copy only the essential final files into it
-          RUN mkdir -p /build_output/bin && \
-              cp /tmp/RetroArch/retroarch /build_output/bin/ && \
-              cp /tmp/RetroArch/retroarch.cfg /build_output/
-          EOF
-
-      - name: Build the Docker image
-        run: docker build -t retroarch-trimui-brick .
-
-      - name: Extract artifacts from the image
-        run: |
-          mkdir -p artifacts
-          docker create --name temp_container retroarch-trimui-brick
-          docker cp temp_container:/build_output/. artifacts/
-          docker rm temp_container
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: retroarch-trimui-brick-build
-          path: artifacts/
+    - name: Upload the final RetroArch binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: retroarch-trimui-brick
+        path: output/build/RetroArch/retroarch
