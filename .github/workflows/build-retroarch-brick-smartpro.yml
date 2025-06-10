@@ -1,10 +1,6 @@
 name: Build RetroArch for TrimUI Smart Pro (Brick)
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,9 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # ==========================================================================
-    # 1. Download and Setup the Official Arm Toolchain
-    # ==========================================================================
+    # STEP 1: Download and Setup the Official Arm Toolchain
     - name: Download and Setup Arm GNU Toolchain
       run: |
         echo "Downloading official Arm GNU Toolchain..."
@@ -27,16 +21,14 @@ jobs:
         echo "Adding toolchain to PATH..."
         echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
 
-    # ==========================================================================
-    # 2. Install necessary build tools on the runner
-    # ==========================================================================
+    # STEP 2: Install necessary build tools on the runner
     - name: Install Host Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential pkg-config git
 
     # ==========================================================================
-    # 3. Clone and Configure the RetroArch source code
+    # STEP 3: Clone and Configure RetroArch (Corrected Syntax)
     # ==========================================================================
     - name: Clone and Configure RetroArch v1.21.0
       run: |
@@ -45,27 +37,23 @@ jobs:
         git checkout v1.21.0
         
         echo "Configuring RetroArch for cross-compilation..."
-        # We now use the prefix for the new toolchain: 'aarch64-none-linux-gnu-'
+        # Corrected syntax: Environment variables are set BEFORE the command.
+        CC=aarch64-none-linux-gnu-gcc \
+        CXX=aarch64-none-linux-gnu-g++ \
+        AR=aarch64-none-linux-gnu-ar \
+        STRIP=aarch64-none-linux-gnu-strip \
         ./configure \
           --host=aarch64-none-linux-gnu \
-          CC=aarch64-none-linux-gnu-gcc \
-          CXX=aarch64-none-linux-gnu-g++ \
-          AR=aarch64-none-linux-gnu-ar \
-          STRIP=aarch64-none-linux-gnu-strip \
           --disable-x11 --disable-wayland --disable-pulse \
           --enable-opengles --enable-egl --enable-kms
 
-    # ==========================================================================
-    # 4. Compile RetroArch
-    # ==========================================================================
+    # STEP 4: Compile RetroArch
     - name: Compile RetroArch
       run: |
         cd RetroArch
         make -j$(nproc)
 
-    # ==========================================================================
-    # 5. Upload the finished RetroArch binary as an artifact
-    # ==========================================================================
+    # STEP 5: Upload the finished RetroArch binary as an artifact
     - name: Upload RetroArch Binary
       uses: actions/upload-artifact@v4
       with:
