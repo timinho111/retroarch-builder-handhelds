@@ -34,15 +34,10 @@ jobs:
         tar -xf arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -C ${{ github.workspace }}/arm-toolchain --strip-components=1
         echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
 
-    # ==========================================================================
     # STEP 3: Install All Host and Target (arm64) Dependencies
-    # ==========================================================================
     - name: Install Host and Target Dependencies
       run: |
-        # Install build tools for the runner (host)
         sudo apt-get install -y build-essential pkg-config git
-        
-        # Install the required libraries for the arm64 target, including the missing systemd
         sudo apt-get install -y libegl-dev:arm64 libgles2-mesa-dev:arm64 libudev-dev:arm64 libasound2-dev:arm64 libgbm-dev:arm64 libsystemd-dev:arm64
 
     # ==========================================================================
@@ -54,14 +49,16 @@ jobs:
         cd RetroArch
         git checkout v1.21.0
         
-        echo "--- Verifying pkg-config installation ---"
-        which pkg-config
-        
         # This is the definitive environment setup for cross-compilation
         export CC=aarch64-none-linux-gnu-gcc
         export CXX=aarch64-none-linux-gnu-g++
         export AR=aarch64-none-linux-gnu-ar
         export STRIP=aarch64-none-linux-gnu-strip
+        
+        # Tell the build system the EXACT pkg-config to use. This is the final fix.
+        export PKG_CONFIG=/usr/bin/pkg-config
+
+        # Tell pkg-config where to find the arm64 libraries
         export PKG_CONFIG_SYSROOT_DIR=/
         export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
         export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu
@@ -71,17 +68,13 @@ jobs:
           --disable-x11 --disable-wayland --disable-pulse \
           --enable-opengles --enable-egl --enable-kms
 
-    # ==========================================================================
     # STEP 5: Compile RetroArch
-    # ==========================================================================
     - name: Compile RetroArch
       run: |
         cd RetroArch
         make -j$(nproc)
 
-    # ==========================================================================
     # STEP 6: Upload the finished RetroArch binary as an artifact
-    # ==========================================================================
     - name: Upload RetroArch Binary
       uses: actions/upload-artifact@v4
       with:
