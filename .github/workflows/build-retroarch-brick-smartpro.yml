@@ -1,4 +1,4 @@
-name: Build RetroArch for TrimUI Smart Pro (Brick)
+name: Build RetroArch for TrimUI Smart Pro (Brick) - Definitive
 
 on:
   workflow_dispatch:
@@ -9,42 +9,45 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    # STEP 1: Download and Setup the Official Arm Toolchain (This was successful)
+    # ==========================================================================
+    # 1. Set up a correctly scoped Multi-Arch build environment
+    # ==========================================================================
+    - name: Setup Multi-Arch Environment
+      run: |
+        # Explicitly scope the default sources to amd64 ONLY. This is the new key fix.
+        sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
+        
+        # Now, add arm64 as a new architecture
+        sudo dpkg --add-architecture arm64
+        
+        # Add the official "ports" repository specifically for arm64 packages
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        
+        # Now, update the package list. This will succeed because each architecture has its own dedicated source.
+        sudo apt-get update
+
+    # ==========================================================================
+    # 2. Download the Official Arm Compiler Toolchain
+    # ==========================================================================
     - name: Download and Setup Arm GNU Toolchain
       run: |
-        echo "Downloading official Arm GNU Toolchain..."
         wget -q https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
-
-        echo "Extracting toolchain..."
         mkdir -p ${{ github.workspace }}/arm-toolchain
         tar -xf arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -C ${{ github.workspace }}/arm-toolchain --strip-components=1
-        
-        echo "Adding toolchain to PATH..."
         echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
 
     # ==========================================================================
-    # STEP 2: SETUP MULTI-ARCH AND INSTALL ALL DEPENDENCIES (The Fix)
+    # 3. Install Host and Target (arm64) Dependencies
     # ==========================================================================
-    - name: Setup Multi-Arch and Install Dependencies
+    - name: Install Host and Target Dependencies
       run: |
-        # Add the arm64 architecture
-        sudo dpkg --add-architecture arm64
-        
-        # Add the official "ports" repository which contains the arm64 packages
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-        
-        # Update package lists for both architectures
-        sudo apt-get update
-        
-        # Install build tools for the host runner
         sudo apt-get install -y build-essential pkg-config git
-        
-        # Install the required libraries for the arm64 target
         sudo apt-get install -y libegl-dev:arm64 libgles2-mesa-dev:arm64 libudev-dev:arm64 libasound2-dev:arm64 libgbm-dev:arm64
 
     # ==========================================================================
-    # STEP 3: Clone and Configure RetroArch (Now with library paths)
+    # 4. Clone and Configure RetroArch for Cross-Compilation
     # ==========================================================================
     - name: Clone and Configure RetroArch v1.21.0
       run: |
@@ -52,8 +55,6 @@ jobs:
         cd RetroArch
         git checkout v1.21.0
         
-        echo "Configuring RetroArch for cross-compilation..."
-        # Export variables to tell the compiler where to find the arm64 libraries we just installed
         export CC=aarch64-none-linux-gnu-gcc
         export CXX=aarch64-none-linux-gnu-g++
         export AR=aarch64-none-linux-gnu-ar
@@ -67,13 +68,17 @@ jobs:
           --disable-x11 --disable-wayland --disable-pulse \
           --enable-opengles --enable-egl --enable-kms
 
-    # STEP 4: Compile RetroArch
+    # ==========================================================================
+    # 5. Compile RetroArch
+    # ==========================================================================
     - name: Compile RetroArch
       run: |
         cd RetroArch
         make -j$(nproc)
 
-    # STEP 5: Upload the finished RetroArch binary as an artifact
+    # ==========================================================================
+    # 6. Upload the finished RetroArch binary as an artifact
+    # ==========================================================================
     - name: Upload RetroArch Binary
       uses: actions/upload-artifact@v4
       with:
