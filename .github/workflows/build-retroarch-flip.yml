@@ -1,4 +1,4 @@
-name: Build RetroArch
+name: Build RetroArch for Miyoo Flip
 on:
   workflow_dispatch:
 jobs:
