@@ -1,0 +1,82 @@
+name: Build RetroArch for TrimUI Smart Pro / Brick
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Allows you to run this workflow manually
+
+jobs:
+  build:
+    # We are compiling on a standard Ubuntu runner (x86) because we are using a cross-compilation toolchain.
+    runs-on: ubuntu-latest
+
+    steps:
+    # ==========================================================================
+    # 1. Download and Setup the Toolchain for TrimUI Smart Pro
+    # ==========================================================================
+    - name: Download and Setup TrimUI Toolchain
+      run: |
+        echo "Downloading Allwinner A133 Plus toolchain..."
+        # We are downloading a proven, community-provided toolchain
+        wget -q https://github.com/trimui-dev/buildroot-trimui/releases/download/2023.10.27/trimui-toolchain.tar.gz
+        
+        echo "Extracting toolchain..."
+        # We create a directory for the toolchain and extract it
+        mkdir -p ${{ github.workspace }}/trimui-toolchain
+        tar -xzf trimui-toolchain.tar.gz -C ${{ github.workspace }}/trimui-toolchain --strip-components=1
+        
+        echo "Adding toolchain to PATH..."
+        # We add the toolchain's 'bin' folder to the system PATH so its commands can be found
+        echo "${{ github.workspace }}/trimui-toolchain/bin" >> $GITHUB_PATH
+
+    # ==========================================================================
+    # 2. Install necessary build tools on the runner itself
+    # ==========================================================================
+    - name: Install Host Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config git
+
+    # ==========================================================================
+    # 3. Clone and Configure the RetroArch source code
+    # ==========================================================================
+    - name: Clone and Configure RetroArch v1.21.0
+      run: |
+        # We clone the official RetroArch repository
+        git clone https://github.com/libretro/RetroArch.git
+        cd RetroArch
+        
+        # We check out the desired version v1.21.0
+        git checkout v1.21.0
+        
+        echo "Configuring RetroArch for cross-compilation..."
+        # This is the crucial step. We are telling the build system
+        # to use our special toolchain and build for the TrimUI Brick.
+        ./configure \
+          --host=aarch64-buildroot-linux-gnu \
+          CC=aarch64-buildroot-linux-gnu-gcc \
+          CXX=aarch64-buildroot-linux-gnu-g++ \
+          AR=aarch64-buildroot-linux-gnu-ar \
+          STRIP=aarch64-buildroot-linux-gnu-strip \
+          --disable-x11 --disable-wayland --disable-pulse \
+          --enable-opengles --enable-egl --enable-kms
+
+    # ==========================================================================
+    # 4. Compile RetroArch
+    # ==========================================================================
+    - name: Compile RetroArch
+      run: |
+        cd RetroArch
+        # We start the compilation process using all available processor cores
+        make -j$(nproc)
+
+    # ==========================================================================
+    # 5. Upload the finished RetroArch binary as an artifact
+    # ==========================================================================
+    - name: Upload RetroArch Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: retroarch-trimui-brick
+        path: RetroArch/retroarch
