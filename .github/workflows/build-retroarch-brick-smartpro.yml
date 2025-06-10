@@ -1,33 +1,37 @@
 name: Build RetroArch for TrimUI Smart Pro (Brick)
 
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # STEP 1: PIN THE RUNNER TO A STABLE LTS VERSION
+    runs-on: ubuntu-22.04
 
     steps:
     # ==========================================================================
-    # 1. Set up a Multi-Arch build environment with correct sources
+    # 2. Set up a Multi-Arch build environment for Ubuntu 22.04 (Jammy)
     # ==========================================================================
     - name: Setup Multi-Arch Environment
       run: |
         # Add the arm64 architecture
         sudo dpkg --add-architecture arm64
         
-        # Add the official "ports" repository for arm64 packages
-        # This is the key fix to the "404 Not Found" errors
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        # Add the official "ports" repository for arm64 packages for Ubuntu 22.04 (Jammy)
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
         
         # Now, update the package list
         sudo apt-get update
 
     # ==========================================================================
-    # 2. Download the Official Arm Compiler Toolchain
+    # 3. Download the Official Arm Compiler Toolchain
     # ==========================================================================
     - name: Download and Setup Arm GNU Toolchain
       run: |
@@ -37,7 +41,7 @@ jobs:
         echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
 
     # ==========================================================================
-    # 3. Install Host and Target (arm64) Dependencies
+    # 4. Install Host and Target (arm64) Dependencies
     # ==========================================================================
     - name: Install Host and Target Dependencies
       run: |
@@ -45,7 +49,7 @@ jobs:
         sudo apt-get install -y libegl-dev:arm64 libgles2-mesa-dev:arm64 libudev-dev:arm64 libasound2-dev:arm64 libgbm-dev:arm64
 
     # ==========================================================================
-    # 4. Clone and Configure RetroArch for Cross-Compilation
+    # 5. Clone and Configure RetroArch for Cross-Compilation
     # ==========================================================================
     - name: Clone and Configure RetroArch v1.21.0
       run: |
@@ -67,7 +71,7 @@ jobs:
           --enable-opengles --enable-egl --enable-kms
 
     # ==========================================================================
-    # 5. Compile RetroArch
+    # 6. Compile RetroArch
     # ==========================================================================
     - name: Compile RetroArch
       run: |
@@ -75,7 +79,7 @@ jobs:
         make -j$(nproc)
 
     # ==========================================================================
-    # 6. Upload the finished RetroArch binary as an artifact
+    # 7. Upload the finished RetroArch binary as an artifact
     # ==========================================================================
     - name: Upload RetroArch Binary
       uses: actions/upload-artifact@v4
