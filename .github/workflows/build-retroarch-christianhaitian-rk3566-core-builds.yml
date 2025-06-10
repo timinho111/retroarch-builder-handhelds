@@ -1,4 +1,4 @@
-name: Build RetroArch Binary for RK3566
+name: Build RetroArch for RK3566 from RK3566 Core Build Tools
 
 on:
   workflow_dispatch: # Allows you to run this workflow manually
