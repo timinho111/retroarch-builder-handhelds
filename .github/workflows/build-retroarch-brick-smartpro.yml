@@ -35,14 +35,15 @@ jobs:
         echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
 
     # ==========================================================================
-    # STEP 3: Install a Comprehensive set of Dependencies
+    # STEP 3: Install All Host and Target (arm64) Dependencies
     # ==========================================================================
     - name: Install Host and Target Dependencies
       run: |
         # Install build tools for the runner (host)
         sudo apt-get install -y build-essential pkg-config git
         
-        # Install a comprehensive list of required libraries for the arm64 target
+        # Install the required libraries for the arm64 target
+        # The problematic fontconfig packages have been removed.
         sudo apt-get install -y \
           libegl-dev:arm64 \
           libgles2-mesa-dev:arm64 \
@@ -54,8 +55,6 @@ jobs:
           libxkbcommon-dev:arm64 \
           libfreetype6-dev:arm64 \
           libgl1-mesa-dev:arm64 \
-          fontconfig:arm64 \
-          libfontconfig1-dev:arm64 \
           zlib1g-dev:arm64
 
     # ==========================================================================
@@ -81,8 +80,8 @@ jobs:
         
         ./configure \
           --host=aarch64-none-linux-gnu \
-          --disable-x11 --disable-wayland --disable-pulse \
-          --enable-opengles --enable-egl --enable-kms
+          --disable-x11 --disable-wayland --disable-pulse --disable-fontconfig \
+          --enable-opengles --enable-egl --enable-kms --enable-freetype
         EOF
         
         # Make the wrapper script executable and run it
