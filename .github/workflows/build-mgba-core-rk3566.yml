@@ -1,0 +1,83 @@
+name: Build mGBA Core (Self-Contained)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-core:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Set up Docker's cross-platform build tools first
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step 2: Dynamically create the Dockerfile and then build the image
+      - name: Create Dockerfile and Build Environment
+        run: |
+          cat <<EOF > Dockerfile
+          # Use Debian Buster for ARM64 as the base image
+          FROM arm64v8/debian:buster
+
+          # Set environment variables
+          ENV DEBIAN_FRONTEND=noninteractive CMAKE_VERSION=3.26.4
+
+          # Install all system dependencies
+          RUN apt-get update && \
+              apt-get install -y --no-install-recommends \
+                  build-essential \
+                  git \
+                  wget \
+                  python3 \
+                  python3-pip \
+                  ninja-build \
+                  pkg-config \
+                  libudev-dev \
+                  libdrm-dev \
+                  libegl1-mesa-dev \
+                  libgles2-mesa-dev \
+                  libgl1-mesa-dev \
+                  libasound2-dev \
+                  libgbm-dev \
+                  zlib1g-dev \
+                  libpng-dev \
+                  libsdl2-dev \
+                  libsdl2-ttf-dev \
+                  libfreetype6-dev && \
+              ln -s /usr/include/libdrm /usr/include/drm && \
+              apt-get clean && rm -rf /var/lib/apt/lists/*
+
+          # Manually install a modern version of CMake
+          RUN cd /tmp && \
+              wget https://github.com/Kitware/CMake/releases/download/v\${CMAKE_VERSION}/cmake-\${CMAKE_VERSION}-linux-aarch64.sh && \
+              chmod +x cmake-\${CMAKE_VERSION}-linux-aarch64.sh && \
+              ./cmake-\${CMAKE_VERSION}-linux-aarch64.sh --skip-license --prefix=/usr/local && \
+              rm -f cmake-\${CMAKE_VERSION}-linux-aarch64.sh
+
+          # Manually install a recent version of Meson
+          RUN pip3 install --upgrade meson
+          EOF
+
+          # Now, build the Docker image from the file we just created
+          docker build -t my-core-builder .
+
+      # Step 3: Clone the scripts from the repository you wanted to use
+      - name: Clone Core Build Scripts
+        run: git clone --depth=1 https://github.com/christianhaitian/retroarch-cores.git
+
+      # Step 4: Run the build script for mGBA inside the container we just built
+      - name: Build the mGBA Libretro Core
+        run: |
+          docker run --rm \
+          -v ${{ github.workspace }}/retroarch-cores:/scripts \
+          -v ${{ github.workspace }}/output:/builds \
+          my-core-builder \
+          bash /scripts/build-cores.sh mgba
+
+      # Step 5: Upload the final compiled core as a downloadable artifact
+      - name: Upload Core Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mgba-core
+          path: output/
