@@ -1,4 +1,4 @@
-name: Build RetroArch for TrimUI Smart Pro (Brick) - Final
+name: Build RetroArch for TrimUI Smart Pro (Brick) - DIAGNOSTIC
 
 on:
   push:
@@ -16,18 +16,11 @@ jobs:
     # STEP 1: Set up a correctly scoped Multi-Arch build environment
     - name: Setup Multi-Arch Environment
       run: |
-        # Explicitly scope the default sources to amd64 ONLY
         sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
-        
-        # Add the arm64 architecture
         sudo dpkg --add-architecture arm64
-        
-        # Add the official "ports" repository specifically for arm64 packages
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
         echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-        
-        # Update the package list
         sudo apt-get update
 
     # STEP 2: Download the Official Arm Compiler Toolchain
@@ -41,10 +34,7 @@ jobs:
     # STEP 3: Install All Host and Target (arm64) Dependencies
     - name: Install Host and Target Dependencies
       run: |
-        # Install build tools for the runner (host)
         sudo apt-get install -y build-essential pkg-config git
-        
-        # Install the required libraries for the arm64 target
         sudo apt-get install -y \
           libegl-dev:arm64 \
           libgles2-mesa-dev:arm64 \
@@ -58,8 +48,10 @@ jobs:
           libgl1-mesa-dev:arm64 \
           zlib1g-dev:arm64
 
-    # STEP 4: Clone and Configure RetroArch using a Wrapper Script
-    - name: Clone and Configure RetroArch v1.21.0
+    # ==========================================================================
+    # STEP 4: Run Diagnostic Probe and Attempt Configuration
+    # ==========================================================================
+    - name: Run Diagnostic Probe and Attempt Configuration
       run: |
         git clone https://github.com/libretro/RetroArch.git
         cd RetroArch
@@ -68,6 +60,9 @@ jobs:
         # Create a self-contained wrapper script to run configure
         cat <<'EOF' > run_configure.sh
         #!/bin/bash
+        set -x  # Enable debug printing to see every command being run
+
+        echo "--- ENVIRONMENT VERIFICATION ---"
         export CC=aarch64-none-linux-gnu-gcc
         export CXX=aarch64-none-linux-gnu-g++
         export AR=aarch64-none-linux-gnu-ar
@@ -77,6 +72,35 @@ jobs:
         export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
         export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu
         
+        env | sort
+        
+        echo "--- COMPILER CHECK ---"
+        which ${CC}
+        ${CC} --version
+        
+        echo "--- PKG-CONFIG CHECK ---"
+        which ${PKG_CONFIG}
+        ${PKG_CONFIG} --version
+
+        echo "--- CHECKING FOR EGL.PC ---"
+        # Test if pkg-config can find the egl.pc file and print its contents
+        if [[ -f "/usr/lib/aarch64-linux-gnu/pkgconfig/egl.pc" ]]; then
+            echo "SUCCESS: egl.pc exists"
+            cat /usr/lib/aarch64-linux-gnu/pkgconfig/egl.pc
+        else
+            echo "FAILURE: egl.pc DOES NOT EXIST"
+        fi
+        
+        echo "--- CHECKING FOR EGL.H HEADER FILE ---"
+        # Test if the egl.h file exists on the filesystem
+        if [[ -f "/usr/include/aarch64-linux-gnu/EGL/egl.h" ]]; then
+            echo "SUCCESS: egl.h exists"
+            ls -l /usr/include/aarch64-linux-gnu/EGL/egl.h
+        else
+            echo "FAILURE: egl.h DOES NOT EXIST"
+        fi
+
+        echo "--- ATTEMPTING CONFIGURE ---"
         ./configure \
           --host=aarch64-none-linux-gnu \
           --disable-x11 --disable-wayland --disable-pulse \
@@ -86,16 +110,3 @@ jobs:
         # Make the wrapper script executable and run it
         chmod +x run_configure.sh
         ./run_configure.sh
-
-    # STEP 5: Compile RetroArch
-    - name: Compile RetroArch
-      run: |
-        cd RetroArch
-        make -j$(nproc)
-
-    # STEP 6: Upload the finished RetroArch binary as an artifact
-    - name: Upload RetroArch Binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: retroarch-trimui-brick
-        path: RetroArch/retroarch
