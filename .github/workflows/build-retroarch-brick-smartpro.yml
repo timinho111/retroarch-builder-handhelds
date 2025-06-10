@@ -8,28 +8,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # STEP 1: Download and Setup the Official Arm Toolchain
-    - name: Download and Setup Arm GNU Toolchain
+    # STEP 1: Download and Setup the correct TrimUI Toolchain (with Sysroot)
+    - name: Download and Setup TrimUI Toolchain
       run: |
-        echo "Downloading official Arm GNU Toolchain..."
-        wget -q https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
+        echo "Downloading TrimUI buildroot toolchain..."
+        # This is the new, working URL to a toolchain that includes system libraries
+        wget -q https://github.com/trimui-dev/buildroot-trimui/releases/download/2024-02-18/trimui-toolchain-a133-13.2.tar.gz
 
         echo "Extracting toolchain..."
-        mkdir -p ${{ github.workspace }}/arm-toolchain
-        tar -xf arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -C ${{ github.workspace }}/arm-toolchain --strip-components=1
+        mkdir -p ${{ github.workspace }}/trimui-toolchain
+        tar -xf trimui-toolchain-a133-13.2.tar.gz -C ${{ github.workspace }}/trimui-toolchain --strip-components=1
         
         echo "Adding toolchain to PATH..."
-        echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
+        echo "${{ github.workspace }}/trimui-toolchain/bin" >> $GITHUB_PATH
 
     # STEP 2: Install necessary build tools on the runner
     - name: Install Host Dependencies
       run: |
         sudo apt-get update
+        # We are adding the missing pkg-config tool here
         sudo apt-get install -y build-essential pkg-config git
 
-    # ==========================================================================
-    # STEP 3: Clone and Configure RetroArch (Corrected Syntax)
-    # ==========================================================================
+    # STEP 3: Clone and Configure RetroArch with the correct toolchain
     - name: Clone and Configure RetroArch v1.21.0
       run: |
         git clone https://github.com/libretro/RetroArch.git
@@ -37,13 +37,13 @@ jobs:
         git checkout v1.21.0
         
         echo "Configuring RetroArch for cross-compilation..."
-        # Corrected syntax: Environment variables are set BEFORE the command.
-        CC=aarch64-none-linux-gnu-gcc \
-        CXX=aarch64-none-linux-gnu-g++ \
-        AR=aarch64-none-linux-gnu-ar \
-        STRIP=aarch64-none-linux-gnu-strip \
+        # We use the prefix for the buildroot toolchain: 'aarch64-buildroot-linux-gnu-'
+        CC=aarch64-buildroot-linux-gnu-gcc \
+        CXX=aarch64-buildroot-linux-gnu-g++ \
+        AR=aarch64-buildroot-linux-gnu-ar \
+        STRIP=aarch64-buildroot-linux-gnu-strip \
         ./configure \
-          --host=aarch64-none-linux-gnu \
+          --host=aarch64-buildroot-linux-gnu \
           --disable-x11 --disable-wayland --disable-pulse \
           --enable-opengles --enable-egl --enable-kms
 
