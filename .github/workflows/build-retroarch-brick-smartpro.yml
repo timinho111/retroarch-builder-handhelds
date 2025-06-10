@@ -1,6 +1,10 @@
-name: Build RetroArch for TrimUI Smart Pro (Brick)
+name: Build RetroArch for TrimUI Smart Pro (Brick) - Final
 
 on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
