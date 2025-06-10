@@ -1,4 +1,4 @@
-name: Build RetroArch for TrimUI Smart Pro (Brick) - DIAGNOSTIC
+name: Build RetroArch for TrimUI Smart Pro (Brick) - Docker Final
 
 on:
   push:
@@ -9,104 +9,69 @@ on:
 
 jobs:
   build:
-    # Use a stable LTS version of Ubuntu for reliable multi-arch support
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-    # STEP 1: Set up a correctly scoped Multi-Arch build environment
-    - name: Setup Multi-Arch Environment
+    - name: Set up QEMU for multi-platform builds
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build RetroArch inside an arm64 Container and Extract Binary
       run: |
-        sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list
-        sudo dpkg --add-architecture arm64
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-        sudo apt-get update
+        # Dynamically create our Dockerfile. This defines the perfect build environment.
+        cat <<EOF > Dockerfile
+        # Start from a clean, arm64 Ubuntu 22.04 image
+        FROM arm64v8/ubuntu:22.04
 
-    # STEP 2: Download the Official Arm Compiler Toolchain
-    - name: Download and Setup Arm GNU Toolchain
-      run: |
-        wget -q https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
-        mkdir -p ${{ github.workspace }}/arm-toolchain
-        tar -xf arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -C ${{ github.workspace }}/arm-toolchain --strip-components=1
-        echo "${{ github.workspace }}/arm-toolchain/bin" >> $GITHUB_PATH
+        # Avoid interactive prompts during package installation
+        ENV DEBIAN_FRONTEND=noninteractive
 
-    # STEP 3: Install All Host and Target (arm64) Dependencies
-    - name: Install Host and Target Dependencies
-      run: |
-        sudo apt-get install -y build-essential pkg-config git
-        sudo apt-get install -y \
-          libegl-dev:arm64 \
-          libgles2-mesa-dev:arm64 \
-          libudev-dev:arm64 \
-          libasound2-dev:arm64 \
-          libgbm-dev:arm64 \
-          libsystemd-dev:arm64 \
-          libdrm-dev:arm64 \
-          libxkbcommon-dev:arm64 \
-          libfreetype6-dev:arm64 \
-          libgl1-mesa-dev:arm64 \
-          zlib1g-dev:arm64
+        # Install every possible dependency RetroArch might need, natively for arm64
+        RUN apt-get update && apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            git \
+            libegl-dev \
+            libgles2-mesa-dev \
+            libudev-dev \
+            libasound2-dev \
+            libgbm-dev \
+            libsystemd-dev \
+            libdrm-dev \
+            libxkbcommon-dev \
+            libfreetype6-dev \
+            libgl1-mesa-dev \
+            zlib1g-dev
 
-    # ==========================================================================
-    # STEP 4: Run Diagnostic Probe and Attempt Configuration
-    # ==========================================================================
-    - name: Run Diagnostic Probe and Attempt Configuration
-      run: |
-        git clone https://github.com/libretro/RetroArch.git
-        cd RetroArch
-        git checkout v1.21.0
-        
-        # Create a self-contained wrapper script to run configure
-        cat <<'EOF' > run_configure.sh
-        #!/bin/bash
-        set -x  # Enable debug printing to see every command being run
+        # Set a working directory inside the container
+        WORKDIR /build
 
-        echo "--- ENVIRONMENT VERIFICATION ---"
-        export CC=aarch64-none-linux-gnu-gcc
-        export CXX=aarch64-none-linux-gnu-g++
-        export AR=aarch64-none-linux-gnu-ar
-        export STRIP=aarch64-none-linux-gnu-strip
-        export PKG_CONFIG=/usr/bin/pkg-config
-        export PKG_CONFIG_SYSROOT_DIR=/
-        export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-        export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu
-        
-        env | sort
-        
-        echo "--- COMPILER CHECK ---"
-        which ${CC}
-        ${CC} --version
-        
-        echo "--- PKG-CONFIG CHECK ---"
-        which ${PKG_CONFIG}
-        ${PKG_CONFIG} --version
-
-        echo "--- CHECKING FOR EGL.PC ---"
-        # Test if pkg-config can find the egl.pc file and print its contents
-        if [[ -f "/usr/lib/aarch64-linux-gnu/pkgconfig/egl.pc" ]]; then
-            echo "SUCCESS: egl.pc exists"
-            cat /usr/lib/aarch64-linux-gnu/pkgconfig/egl.pc
-        else
-            echo "FAILURE: egl.pc DOES NOT EXIST"
-        fi
-        
-        echo "--- CHECKING FOR EGL.H HEADER FILE ---"
-        # Test if the egl.h file exists on the filesystem
-        if [[ -f "/usr/include/aarch64-linux-gnu/EGL/egl.h" ]]; then
-            echo "SUCCESS: egl.h exists"
-            ls -l /usr/include/aarch64-linux-gnu/EGL/egl.h
-        else
-            echo "FAILURE: egl.h DOES NOT EXIST"
-        fi
-
-        echo "--- ATTEMPTING CONFIGURE ---"
-        ./configure \
-          --host=aarch64-none-linux-gnu \
-          --disable-x11 --disable-wayland --disable-pulse \
-          --enable-opengles --enable-egl --enable-kms --enable-freetype
+        # Clone and configure RetroArch
+        RUN git clone https://github.com/libretro/RetroArch.git && \
+            cd RetroArch && \
+            git checkout v1.21.0 && \
+            ./configure \
+              --enable-opengles \
+              --enable-egl \
+              --enable-kms \
+              --enable-freetype \
+              --disable-x11 \
+              --disable-wayland \
+              --disable-pulse && \
+            make -j\$(nproc)
         EOF
-        
-        # Make the wrapper script executable and run it
-        chmod +x run_configure.sh
-        ./run_configure.sh
+
+        # Use Docker to build the image. The --output flag tells Docker to
+        # copy the build result to a local 'output' directory instead of saving the image.
+        docker buildx build \
+          --platform linux/arm64 \
+          --output type=local,dest=./output \
+          .
+
+    - name: Upload the final RetroArch binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: retroarch-trimui-brick
+        path: output/build/RetroArch/retroarch
