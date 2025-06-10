@@ -9,12 +9,21 @@ jobs:
 
     steps:
     # ==========================================================================
-    # 1. Set up a Multi-Arch build environment
+    # 1. Set up a Multi-Arch build environment with correct sources
     # ==========================================================================
     - name: Setup Multi-Arch Environment
       run: |
-        # Add the arm64 architecture to the runner's package manager
+        # Add the arm64 architecture
         sudo dpkg --add-architecture arm64
+        
+        # Add the official "ports" repository for arm64 packages
+        # This is the key fix to the "404 Not Found" errors
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+        
+        # Now, update the package list
         sudo apt-get update
 
     # ==========================================================================
@@ -22,7 +31,6 @@ jobs:
     # ==========================================================================
     - name: Download and Setup Arm GNU Toolchain
       run: |
-        echo "Downloading official Arm GNU Toolchain..."
         wget -q https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz
         mkdir -p ${{ github.workspace }}/arm-toolchain
         tar -xf arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz -C ${{ github.workspace }}/arm-toolchain --strip-components=1
@@ -33,9 +41,7 @@ jobs:
     # ==========================================================================
     - name: Install Host and Target Dependencies
       run: |
-        # Install build tools for the runner (host)
         sudo apt-get install -y build-essential pkg-config git
-        # Install the required libraries for the target device (arm64)
         sudo apt-get install -y libegl-dev:arm64 libgles2-mesa-dev:arm64 libudev-dev:arm64 libasound2-dev:arm64 libgbm-dev:arm64
 
     # ==========================================================================
@@ -47,8 +53,6 @@ jobs:
         cd RetroArch
         git checkout v1.21.0
         
-        echo "Configuring RetroArch for cross-compilation..."
-        # Set environment variables to point the compiler to the correct libraries and headers
         export CC=aarch64-none-linux-gnu-gcc
         export CXX=aarch64-none-linux-gnu-g++
         export AR=aarch64-none-linux-gnu-ar
