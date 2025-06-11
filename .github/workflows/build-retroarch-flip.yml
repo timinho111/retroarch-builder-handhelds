@@ -1,4 +1,4 @@
-name: Build Portable RetroArch for Miyoo Flip
+name: Build Portable RetroArch (Final Attempt)
 
 on:
   workflow_dispatch:
@@ -7,13 +7,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Set up Docker's cross-platform build tools
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Step 2: Dynamically create the Dockerfile and then build the image
       - name: Create Dockerfile and Build Environment
         run: |
           cat <<'EOF' > Dockerfile
@@ -48,10 +46,10 @@ jobs:
 
           # Manually install a modern version of CMake
           RUN cd /tmp && \
-              wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-aarch64.sh && \
-              chmod +x cmake-${CMAKE_VERSION}-linux-aarch64.sh && \
-              ./cmake-${CMAKE_VERSION}-linux-aarch64.sh --skip-license --prefix=/usr/local && \
-              rm -f cmake-${CMAKE_VERSION}-linux-aarch64.sh
+              wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-<span class="math-inline">\{CMAKE\_VERSION\}\-linux\-aarch64\.sh && \\
+chmod \+x cmake\-</span>{CMAKE_VERSION}-linux-aarch64.sh && \
+              ./cmake-<span class="math-inline">\{CMAKE\_VERSION\}\-linux\-aarch64\.sh \-\-skip\-license \-\-prefix\=/usr/local && \\
+rm \-f cmake\-</span>{CMAKE_VERSION}-linux-aarch64.sh
 
           # Manually build and install SDL2
           RUN cd /tmp && \
@@ -69,8 +67,8 @@ jobs:
               git clone https://github.com/libretro/RetroArch.git && \
               cd RetroArch && \
               git checkout v1.21.0 && \
-              export CFLAGS="-O2 -march=armv8-a -mtune=cortex-a55 -s" && \
-              export LDFLAGS="-s" && \
+              # Using more generic compiler flags for better portability
+              export CFLAGS="-O2 -pipe" && \
               ./configure \
                 --enable-kms \
                 --enable-egl \
@@ -86,34 +84,10 @@ jobs:
               mkdir -p /build_output/RetroArch/.retroarch/saves && \
               mkdir -p /build_output/RetroArch/.retroarch/states && \
               mkdir -p /build_output/RetroArch/.retroarch/system && \
-              mkdir -p /build_output/RetroArch/.retroarch/assets && \
-              mkdir -p /build_output/RetroArch/.retroarch/overlays && \
-              # Copy the compiled binary and the config file into the main folder
               cp /tmp/RetroArch/retroarch /build_output/RetroArch/ && \
               cp /tmp/RetroArch/retroarch.cfg /build_output/RetroArch/ && \
-              # Use sed to automatically update the default paths in the config file
-              sed -i 's/^#\s*core_assets_directory.*$/core_assets_directory = ".\/.retroarch\/assets"/' /build_output/RetroArch/retroarch.cfg && \
-              sed -i 's/^#\s*core_directory.*$/core_directory = ".\/.retroarch\/cores"/' /build_output/RetroArch/retroarch.cfg && \
-              sed -i 's/^#\s*savefile_directory.*$/savefile_directory = ".\/.retroarch\/saves"/' /build_output/RetroArch/retroarch.cfg && \
-              sed -i 's/^#\s*savestate_directory.*$/savestate_directory = ".\/.retroarch\/states"/' /build_output/RetroArch/retroarch.cfg && \
-              sed -i 's/^#\s*system_directory.*$/system_directory = ".\/.retroarch\/system"/' /build_output/RetroArch/retroarch.cfg && \
-              sed -i 's/^#\s*overlay_directory.*$/overlay_directory = ".\/.retroarch\/overlays"/' /build_output/RetroArch/retroarch.cfg
-          EOF
-
-          # Now, build the Docker image from the file we just created
-          docker build -t my-build-env .
-
-      # Extract the final portable folder from the image
-      - name: Extract Portable RetroArch Folder
-        run: |
-          mkdir -p artifacts
-          docker create --name temp_container my-build-env
-          docker cp temp_container:/build_output/RetroArch/. artifacts/
-          docker rm temp_container
-
-      # Upload the final folder as a downloadable artifact
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: RetroArch_Portable_v1.21.0
-          path: artifacts/
+              sed -i 's/^#\s*core_assets_directory.*<span class="math-inline">/core\_assets\_directory \= "\.\\/\.retroarch\\/assets"/' /build\_output/RetroArch/retroarch\.cfg && \\
+sed \-i 's/^\#\\s\*core\_directory\.\*</span>/core_directory = ".\/.retroarch\/cores"/' /build_output/RetroArch/retroarch.cfg && \
+              sed -i 's/^#\s*savefile_directory.*<span class="math-inline">/savefile\_directory \= "\.\\/\.retroarch\\/saves"/' /build\_output/RetroArch/retroarch\.cfg && \\
+sed \-i 's/^\#\\s\*savestate\_directory\.\*</span>/savestate_directory = ".\/.retroarch\/states"/' /build_output/RetroArch/retroarch.cfg && \
+              sed -i 's/^#\s*
